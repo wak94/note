@@ -23,7 +23,7 @@
 
 该数据集包含分子结构与活性信息，可用于训练针对特定靶标的生成模型，重原子大小分布见下图：
 
-<img src="D:\AIDD\note\Target-specific de novo design of drug candidate molecules with graph-transformer-based generative adversarial networks.assets\image-20251016205410337.png" alt="image-20251016205410337"  />
+<img src=".\Target-specific de novo design of drug candidate molecules with graph-transformer-based generative adversarial networks.assets\image-20251016205410337.png" alt="image-20251016205410337"  />
 
 ## 图编码（特征化）
 
@@ -33,7 +33,7 @@
 
 DrugGEN 模型基于 GAN 构建。图 2 展示了默认 DrugGEN 模型的整体工作流程。生成器 $G$ 是一个图变换器编码器，它将给定的输入 $z$ 转换为新的注释矩阵和邻接矩阵。然后，这些矩阵与真实小分子的矩阵一起输入判别器网络 $D$，以将其分配到“真实”和“伪造”组。各模块的详细信息如下所示。
 
-<img src="D:\AIDD\note\Target-specific de novo design of drug candidate molecules with graph-transformer-based generative adversarial networks.assets\image-20251016210254118.png" alt="image-20251016210254118" style="zoom: 80%;" />
+<img src=".\Target-specific de novo design of drug candidate molecules with graph-transformer-based generative adversarial networks.assets\image-20251016210254118.png" alt="image-20251016210254118" style="zoom: 80%;" />
 
 ### 生成器
 
