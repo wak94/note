@@ -38,7 +38,7 @@ $$
 L_t(\theta) = \mathbb{E}_{\tau, \epsilon, \mathbf{x}_0} \left[ \| \epsilon - \epsilon_\theta(\mathbf{x}_\tau, \tau) \|^2 \right].
 $$
 
-### 2 在旋转群 $SO(3)$ 上定义扩散
+# 在旋转群 $SO(3)$ 上定义扩散
 
 训练扩散模型的一个关键组成部分是在时间步 $t$ 时从扩散分布中采样，而无需计算中间值。对于 $\mathbb{R}^n$（欧几里得空间）上的正态分布扩散，这可以通过之前推导的闭式方程轻松实现。然而，由于多种因素，这很难推广到旋转空间 $SO(3)$。
 
@@ -100,3 +100,33 @@ $$
 $$
 \tilde{\mu}(\mathbf{x}_t, \mathbf{x}_0) = \lambda\left( \frac{\sqrt{\bar{\alpha}_{t-1}} \beta_t}{1 - \bar{\alpha}_t}, \mathbf{x}_0 \right) \lambda\left( \frac{\sqrt{\bar{\alpha}_t} (1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}, \mathbf{x}_t \right).
 $$
+
+# A 逆向过程的参数化
+
+当从欧几里得扩散模型中训练或采样时，前向和逆向过程的随机部分可以通过缩放标准正态分布来计算。在 DDPMs 中，逆向过程的均值由公式 3 给出：由于 DDPMs 类似于朗之万动力学，其中 $\epsilon_\theta$ 预测数据密度的学习梯度，我们在预测 $SO(3)$ 中旋转矩阵的梯度时遇到了问题。
+
+我们不能直接预测 $SO(3)$ 中的值，因为旋转矩阵的梯度并不位于其自身空间内。相反，旋转矩阵 $R$ 的梯度位于其切空间 $T_R SO(3)$ 上，并具有形式 $S(v)R$，其中 $S(v)$ 是一个斜对称矩阵。直接预测值 $S(v)$ 涉及预测一个位于 9D 空间中的 3D 超平面上的点。这需要网络具备关于旋转 $R = x_t$ 的知识。我们通过预测 $v$ 来简化网络的工作，注意到 $S(v)$ 也可以被解释为角速度张量。其次，从 $\mathcal{IG}_{SO(3)}(I, \lambda)$ 中采样无法通过缩放从 $\mathcal{IG}_{SO(3)}(I, 1)$ 中采样的样本完成。相反，在训练期间（算法 1），我们对我们的扩散旋转矩阵 $R \sim \mathcal{IG}_{SO(3)}(I, \sqrt{1 - \bar{\alpha}_t})$ 进行采样，将其转换为斜对称形式，然后通过 $\frac{1}{\sqrt{1 - \alpha_t}}$ 缩放目标，以便获得一个与欧几里得扩散模型训练时使用的标准正态分布类似的目标。这种参数化允许我们在采样时遵循与欧几里得扩散模型相似的方案（附录 C）。
+
+# B 从 $SO(3)$ 上的各向同性高斯分布采样
+
+首先，我们注意到，从 $\mathcal{IG}_{SO(3)}(\mu, \epsilon^2)$ 中采样的旋转可以分解为从一对旋转 $\mathcal{IG}_{SO(3)}(\mu, 0)$ 和 $\mathcal{IG}_{SO(3)}(I, \epsilon^2)$ 中采样，其中 $I$ 是恒等旋转。这对应于将从恒等均值分布中采样的旋转乘以常数 $\mu$。我们进一步将 $\mathcal{IG}_{SO(3)}(I, \epsilon^2)$ 分解为轴角形式。旋转轴在 $S^2$ 上均匀分布，从而便于采样，而旋转角 $\omega$ 的概率密度函数 $f(\omega): \omega \in [0, \pi]$ 由下式给出 (Nikolayev & Savyolov, 1997)：
+
+$$
+f(\omega) = \frac{1 - \cos \omega}{\pi} \sum_{l=0}^{\infty} (2l+1) e^{-l(l+1)\epsilon^2} \frac{\sin((l+\frac{1}{2})\omega)}{\sin(\omega/2)} \quad (10)
+$$
+
+由于该方程中的 $e^{-l(l+1)\epsilon^2}$ 项，对于小的 $\epsilon$ 值，此方程的收敛性较差。我们采用 Matthes 等人 (1988) 推导的近似方法，适用于 $\epsilon \leq 1$：
+
+$$
+f(\omega) = \frac{(1 - \cos(\omega))}{\pi} \sqrt{\pi} \epsilon^{-\frac{3}{2}} e^{\frac{1}{4}} e^{-\left(\frac{\omega}{2}\right)^2} \cdot \frac{\left[ \omega - e^{-\frac{\pi^2}{\epsilon^2}} \left( (\omega - 2\pi) \, e^{\frac{\pi \omega}{\epsilon}} + (\omega + 2\pi) \, e^{-\frac{\pi \omega}{\epsilon}} \right) \right]}{2 \sin\left(\frac{\omega}{2}\right)} \quad (11)
+$$
+
+我们使用逆变换采样法从 $f(t)$ 的近似中进行采样，该方法通过对 PDF 进行梯形积分来数值近似 CDF，并偏向于在 0 附近采样更多样本，以便更准确地捕捉小 $\epsilon$ 时的分布。然后，使用区间 $[0,1]$ 上的均匀样本的线性插值来近似从 $f(t)$ 中采样。
+
+一旦采样了一个角度，就从均匀分布中选择一个任意的轴，然后将该旋转与初始分布的平均旋转组合。虽然在一般情况下，矩阵乘法的顺序在 $SO(3)$ 中很重要，但恒等均值 IG 分布的各向同性性质意味着矩阵乘法的顺序不会影响最终分布。考虑从分布 $\mathcal{IG}_{SO(3)}(\mu, \epsilon)$ 中采样的一个样本，它可以分解为 $\mu z_1$ 或 $z_2 \mu$，因为 $\mu z_1 = z_2 \mu$，且 $\mu z_1 \mu^{-1} = z_2$，矩阵 $z_1$ 和 $z_2$ 是相似的。请注意，这意味着 $\text{tr}(z_1) = \text{tr}(z_2) = 1 + 2 \cos \theta$，其中 $\theta$ 是旋转角。由于 $z_1$ 和 $z_2$ 具有相同的旋转角，仅轴不同（轴是均匀采样的），因此 $\mu z_1$ 和 $z_2 \mu$ 的分布是相同的。
+
+# C $SO(3)$ 扩散的训练和采样算法
+
+神经网络 $\epsilon_\theta$ 在每个时间步 $t$ 学习数据密度梯度的近似值。为了训练该网络，我们需要高效地从 $q(x_t)$ 中采样。一旦训练完成，该网络便被用于生成与分布 $q(x_0)$ 匹配的样本。
+
+![image-20251113103115749](./Denoising%20diffusion%20probabilistic%20models%20on%20SO(3)%20for%20rotational%20alignment.assets/image-20251113103115749.png)
